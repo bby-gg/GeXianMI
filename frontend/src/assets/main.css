@@ -1,0 +1,7 @@
+@import './base.css';
+
+/* 仪表盘全屏布局 — 由 App.vue 的 el-container 接管 */
+#app {
+  width: 100%;
+  height: 100%;
+}

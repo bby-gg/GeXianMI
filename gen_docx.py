@@ -1,0 +1,620 @@
+# encoding: utf-8
+"""将软件工程课程设计 MD 转为标准 .docx 文件"""
+from docx import Document
+from docx.shared import Pt, Cm, Inches, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml.ns import qn
+import re, os
+
+doc = Document()
+
+# ── 全局样式 ──
+style = doc.styles['Normal']
+font = style.font
+font.name = '宋体'
+font.size = Pt(12)
+style.element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
+style.paragraph_format.line_spacing = 1.5
+style.paragraph_format.space_after = Pt(0)
+style.paragraph_format.first_line_indent = Cm(0.74)
+
+for level in range(1, 4):
+    hs = doc.styles[f'Heading {level}']
+    hf = hs.font
+    hf.name = '黑体'
+    hs.element.rPr.rFonts.set(qn('w:eastAsia'), '黑体')
+    hf.color.rgb = RGBColor(0, 0, 0)
+    if level == 1:
+        hf.size = Pt(16)
+        hs.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    elif level == 2:
+        hf.size = Pt(14)
+    else:
+        hf.size = Pt(13)
+
+def p(text, bold=False, center=False, indent=True, size=None):
+    par = doc.add_paragraph()
+    run = par.add_run(text)
+    run.font.name = '宋体'
+    run._element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
+    if bold: run.bold = True
+    if size: run.font.size = Pt(size)
+    if center:
+        par.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if not indent:
+        par.paragraph_format.first_line_indent = Cm(0)
+    return par
+
+def heading(text, level=1):
+    h = doc.add_heading(text, level=level)
+    return h
+
+def add_table(headers, rows, col_widths=None):
+    table = doc.add_table(rows=1 + len(rows), cols=len(headers), style='Table Grid')
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for i, h in enumerate(headers):
+        cell = table.rows[0].cells[i]
+        cell.text = h
+        for ph in cell.paragraphs:
+            ph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in ph.runs:
+                run.bold = True
+                run.font.size = Pt(10)
+    for ri, row in enumerate(rows):
+        for ci, val in enumerate(row):
+            cell = table.rows[ri+1].cells[ci]
+            cell.text = str(val)
+            for ph in cell.paragraphs:
+                for run in ph.runs:
+                    run.font.size = Pt(9)
+    return table
+
+def img_hint(text):
+    """插图提示框"""
+    par = doc.add_paragraph()
+    par.paragraph_format.first_line_indent = Cm(0)
+    par.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = par.add_run(f'【插图：{text}】')
+    run.font.size = Pt(10)
+    run.italic = True
+    run.font.color.rgb = RGBColor(128, 128, 128)
+
+def page_break():
+    doc.add_page_break()
+
+# ==================== 封面 ====================
+for _ in range(4):
+    doc.add_paragraph()
+
+p('软件工程课程设计', bold=True, center=True, size=22, indent=False)
+doc.add_paragraph()
+p('葛仙米生长环境智能监测系统的分析与设计', bold=True, center=True, size=18, indent=False)
+for _ in range(4):
+    doc.add_paragraph()
+p('学    院：计算机与信息工程学院', center=True, size=12, indent=False)
+p('专    业：计算机科学与技术', center=True, size=12, indent=False)
+p('姓    名：___________', center=True, size=12, indent=False)
+p('指导教师：___________', center=True, size=12, indent=False)
+
+page_break()
+
+# ==================== 摘要 ====================
+heading('摘要', 1)
+
+p('本文介绍了葛仙米生长环境智能监测系统的研究与设计。针对目前葛仙米养殖过程中环境参数靠人工记录、数据分散、异常难以及时发现等问题，设计并实现了一套基于 Spring Boot + Vue 3 的 Web 端环境监测系统。系统采用 B/S 架构，后端基于 Java Spring Boot 框架结合 MyBatis-Plus 持久层技术，前端采用 Vue 3 + Element Plus + ECharts 技术栈，通过 RESTful API 实现前后端分离。系统涵盖实时环境监测、历史数据分析、大棚与设备管理、告警监控与阈值配置、用户认证等功能模块。在业务分析中，对传统环境监测方式存在的问题进行了梳理，并对业务流程进行了优化。在功能分析中，通过用例图和用例规约明确了系统的核心功能。在数据分析中，给出了实体关系图、数据库表结构设计。该系统有助于提升葛仙米养殖的数字化管理水平，为精准化养殖提供数据支撑。')
+doc.add_paragraph()
+
+p('关键词：环境监测系统；需求分析；数据库建模；Spring Boot；Vue 3', bold=True, indent=False)
+
+doc.add_paragraph()
+heading('Abstract', 2)
+
+p('This thesis introduces the analysis and design of the Gexianmi Growth Environment Intelligent Monitoring System. To address the problems of manual environmental parameter recording, scattered data, and difficulty in timely anomaly detection in Gexianmi cultivation, a Web-based environment monitoring system was designed and implemented using Spring Boot + Vue 3. The system adopts B/S architecture, with a Java Spring Boot backend combined with MyBatis-Plus persistence layer, and a Vue 3 + Element Plus + ECharts frontend stack, achieving frontend-backend separation via RESTful APIs. The system covers real-time environment monitoring, historical data analysis, greenhouse and device management, alert monitoring and threshold configuration, and user authentication. In business analysis, problems of traditional monitoring methods were sorted out and business processes were optimized. In functional analysis, core functions were clarified through use case diagrams and use case specifications. In data analysis, entity-relationship diagrams and database table structures were designed. This system helps improve the digital management level of Gexianmi cultivation and provides data support for precision aquaculture.')
+doc.add_paragraph()
+
+p('Keywords: Environmental Monitoring System; Requirement Analysis; Database Modelling; Spring Boot; Vue 3', bold=True, indent=False)
+
+page_break()
+
+# ==================== 目录占位 ====================
+heading('目  录', 1)
+p('（生成 .docx 后，在 Word 中按 Ctrl+A → F9 更新目录域即可自动生成）', indent=False)
+page_break()
+
+# ==================== 第1章 绪论 ====================
+heading('1  绪论', 1)
+
+heading('1.1  项目背景', 2)
+
+bg1 = '葛仙米是一种具有较高经济价值的水生食用藻类，其养殖过程对水温、pH值、溶解氧、光照强度、电导率等环境参数有着严格的要求。传统的养殖管理方式依赖人工定时测量和纸质记录，存在以下突出问题：数据采集不及时，难以实现连续监测；数据分散在纸质表格中，无法有效追溯和分析；环境参数出现异常无法第一时间告警，可能导致减产甚至绝收；不同养殖大棚之间的数据孤立，缺乏统一管理平台。'
+p(bg1)
+
+bg2 = '随着物联网传感器技术的成熟和 Web 应用技术的普及，构建一套低成本、易部署的环境监测系统已经成为可能。利用传感器实时采集环境数据，通过互联网传输到服务器存储和分析，再以可视化大屏的方式呈现在管理端，能够有效解决传统方式的痛点。'
+p(bg2)
+
+p('本项目来源于实际葛仙米养殖场景需求，旨在设计并实现一套集数据采集、存储、展示、告警于一体的智能环境监测系统。')
+
+img_hint('图1-1 葛仙米养殖实景照片或系统应用场景示意图。建议放置一张养殖大棚实景照片，标注传感器安装位置和数据流向')
+
+heading('1.2  研究内容和主要工作', 2)
+
+heading('1.2.1  研究内容', 3)
+
+p('本系统的研究内容包括以下几个方面：一是对葛仙米养殖的环境监测需求进行深入分析，梳理现有业务流程中的痛点和改进方向；二是设计系统的技术架构，包括前后端分离的 B/S 架构、JWT 认证机制、跨域解决方案等；三是进行功能设计，涵盖从数据采集到可视化展示的全流程功能模块；四是进行数据库设计，建立合理的数据模型支撑业务需求；五是实现系统并验证其在实际场景中的可用性。')
+
+heading('1.2.2  本文的主要工作', 3)
+
+p('本文围绕葛仙米生长环境智能监测系统的分析与设计展开，主要完成以下工作：')
+
+p('（1）对葛仙米养殖过程中环境监测的业务现状进行了调研和分析，总结了传统手工记录方式存在的问题，提出了信息化的优化方案。')
+p('（2）在业务分析中，识别了系统的参与者（管理员、操作员、观察者），梳理了核心业务流程，并给出了业务流程图。')
+p('（3）在功能分析中，采用 UML 用例图描述了系统的功能需求，并对各功能模块进行了用例规约。')
+p('（4）在数据分析中，给出了系统的实体关系图（E-R 图），对 6 张核心数据表进行了详细的结构设计。')
+p('（5）在系统设计中，给出了系统总体架构图、技术选型方案和前后端目录结构。')
+
+heading('1.3  本文结构', 2)
+
+p('本文共分为四章，组织结构如下：')
+p('第一章介绍了本文的项目背景，阐述了葛仙米养殖环境监测的研究内容和主要工作，并给出论文结构。')
+p('第二章是本文的重点，对系统的业务需求进行了详细的分析，包括业务描述、原有业务流程分析、业务流程优化、角色分析和功能分析（用例图与用例规约）。')
+p('第三章是本文的核心部分之一，在业务分析和功能分析的基础上进行了系统架构设计、功能模块设计（功能包图与类图）和数据库设计（实体关系图与表结构）。')
+p('第四章对全文工作进行了总结，并提出了系统未来的扩展方向。')
+
+page_break()
+
+# ==================== 第2章 需求分析 ====================
+heading('2  需求分析', 1)
+
+p('需求分析是软件工程过程中的关键环节，它定义了系统"做什么"的问题，将用户模糊的需求转化为精确的、可验证的系统需求规格[2]。需求分析主要包括业务分析、功能分析和数据分析三个层次[3]。')
+
+heading('2.1  业务分析', 2)
+
+heading('2.1.1  业务描述', 3)
+
+p('葛仙米养殖环境监测主要涉及以下几方面的业务：')
+
+p('（1）环境数据采集。养殖大棚中安装有水温、pH、溶解氧、光照、电导率等传感器。目前的数据采集方式为人工每隔数小时到各养殖筒手动测量并记录，每次记录需要耗费约 15-20 分钟。记录表格以纸质或 Excel 形式保存，数据分散在多个文件中，查阅历史数据需要翻找大量文件。')
+p('（2）数据监控。养殖人员需要实时了解各养殖筒的环境参数是否在正常范围内。目前靠人工目视检查仪表读数，发现问题后电话通知管理员。这种方式响应速度慢，夜间无人值守时问题可能在数小时后才被发现。')
+p('（3）设备管理。每个大棚内有多个养殖筒，每个养殖筒对应一个传感器设备。设备信息目前记录在纸质台账中，设备的新增、更换、维护缺乏系统化管理。')
+p('（4）告警处理。当环境参数超出正常范围时，需要及时通知相关人员进行处置，并记录告警信息和处理结果。目前缺乏自动告警机制，完全依赖人工判断。')
+p('（5）大棚管理。养殖基地分为多个大棚区域，每个大棚下有若干养殖筒。需要对大棚的基本信息进行管理和维护。')
+
+heading('2.1.2  业务人员分析', 3)
+
+p('本系统涉及以下业务人员：')
+p('（1）管理员。拥有系统最高权限。负责系统的日常运维、用户账号管理、大棚和设备的基础信息维护、告警规则配置等工作。在原有业务流程中，管理员需要通过 Excel 汇总各养殖人员上报的数据，工作量大且容易出错。')
+p('（2）操作员。即养殖技术人员。负责查看环境实时数据、确认和处理告警信息、查询历史数据进行分析。在原有业务流程中，操作员需要亲自到各养殖筒手动测量并记录数据。')
+p('（3）观察者。即基地管理人员。主要权限为查看数据，不参与数据的修改和设备的配置。在原有业务流程中，观察者需要通过管理员发送的汇总报表了解情况，信息滞后严重。')
+
+img_hint('图2-1 原有业务流程图。建议用泳道图，横轴为管理员/操作员/观察者三个泳道，纵轴按时间顺序展示手工采集→记录→汇总→汇报→决策的完整流程，标注各环节耗时和痛点')
+
+heading('2.2  系统业务流程分析', 2)
+
+p('业务流程优化是指从根本上对原有业务流程进行重新思考和彻底设计，将直线职能型结构转变为平行的流程网络结构，优化管理资源和市场资源配置，实现组织结构的扁平化、信息化和网络化，从而提高业务系统的效率和灵活性[3]。')
+
+heading('2.2.1  环境数据监测流程', 3)
+
+p('引入本系统后，环境数据监测流程优化为：传感器定时采集数据，通过 API 接口自动上报至服务器存储。管理员通过 Web 大屏实时查看 5 个参数的仪表盘和最近 1 小时的迷你走势曲线。当系统检测到参数超出预设阈值时，自动生成告警记录并通过告警滚动条提示操作员。操作员可即时查看告警详情并进行确认或忽略处理。观察者可随时登录系统查看各养殖筒的实时状态和历史趋势。')
+p('与原流程相比，优化后的流程实现了三大改进：数据采集从人工变为全自动；告警从被动发现变为主动推送；数据追溯从翻找纸质记录变为一键查询。')
+
+img_hint('图2-2 优化后环境监测业务流程图。建议用泳道图，横轴为传感器/系统/操作员/管理员四个泳道，展示传感器自动上报→系统存储→大屏展示→异常告警→操作员处置→管理员配置规则的完整链路')
+
+heading('2.2.2  大棚与设备管理流程', 3)
+
+p('管理员在系统中录入大棚信息（编号、名称、位置、面积）和设备信息（编号、名称、所属大棚、安装位置）。设备与大棚通过设备表中的 greenhouse_id 外键关联，查询大棚列表时自动统计各棚下设备数量。当设备需要更换或新增时，管理员在设备管理页面直接操作，无需修改纸质台账。')
+
+img_hint('图2-3 大棚设备管理业务流程图。展示添加大棚→添加设备→绑定关联→列表展示的全流程')
+
+heading('2.2.3  告警处理流程', 3)
+
+p('当环境数据 POST 到后台时，系统自动检查各参数值是否超出告警规则配置的阈值范围。若超出，生成告警记录（状态为 active）。操作员在实时监测页看到告警信息后，可进入告警记录页进行确认或忽略操作。管理员可在告警规则配置页调整各参数的阈值和告警级别。')
+
+img_hint('图2-4 告警处理业务流程图。展示数据入库→阈值检查→告警生成→实时展示→操作员确认/忽略→管理员配置规则的完整链路')
+
+heading('2.3  系统功能分析', 2)
+
+p('功能分析描述了软件工程师必须完成的任务，定义了必须实现的功能，使用户通过这些功能完成他们的任务，从而满足业务需求[4]。')
+
+heading('2.3.1  用户角色分析', 3)
+
+p('本系统涉及三类角色，各角色职责分工如下：')
+
+add_table(
+    ['角色', '角色值', '职责描述'],
+    [
+        ['管理员', 'admin', '系统最高权限。管理大棚和设备信息、配置告警规则、管理用户账号、查看所有数据和告警'],
+        ['操作员', 'operator', '查看实时数据和历史数据、确认和处理告警、查看设备状态'],
+        ['观察者', 'viewer', '查看实时数据和历史数据、查看设备和告警信息（仅查看权限）'],
+    ]
+)
+doc.add_paragraph()
+
+img_hint('图2-5 用户角色权限矩阵表。建议用表格，横轴为 7 个功能模块，纵轴为 3 种角色，用 ✅/❌ 标注权限')
+
+heading('2.3.2  总体用例分析', 3)
+
+p('用例（Use Case）表示参与者与系统之间的一次交互过程。用例图用于描述软件需求模型中的系统功能，通过一组用例可以描述系统能够给用户提供的功能[4]。')
+
+p('葛仙米生长环境智能监测系统的总体用例如下所示，涵盖登录注册、实时监测、历史数据、大棚管理、设备管理、告警记录和告警规则配置七个核心用例包。')
+
+img_hint('图2-6 系统总体用例图。图中央为系统边界框，左侧三个参与者（管理员/操作员/观察者），框内 7 个核心用例包，连线标注 <<include>> 和 <<extend>> 关系。登录用例被所有其他用例 include')
+
+heading('2.3.2.1  登录注册用例', 3)
+
+p('登录注册是系统安全的基础。用户通过用户名和密码登录系统，系统验证身份后签发 JWT Token，后续所有 API 请求携带 Token。新用户可通过注册功能创建账户（默认角色为操作员），管理员可在后续为用户分配角色。')
+
+img_hint('图2-7 登录注册用例图。参与者为三类用户，用例包括登录/注册/修改密码/退出登录。登录用例 <<include>> AuthService')
+
+p('表2-1 登录用例规约', bold=True, center=True, indent=False)
+
+add_table(
+    ['规约项', '描述'],
+    [
+        ['用例名称', '用户登录'],
+        ['参与者', '管理员、操作员、观察者'],
+        ['前置条件', '用户已注册，拥有有效的用户名和密码'],
+        ['基本事件流',
+         '1. 用户访问系统，系统跳转至登录页\n'
+         '2. 用户输入用户名和密码\n'
+         '3. 用户点击「登录」按钮\n'
+         '4. 系统验证用户名和密码\n'
+         '5. 验证通过，系统签发 JWT Token\n'
+         '6. 系统跳转至实时监测页面'],
+        ['异常事件流',
+         '4a. 用户名或密码错误，系统提示"用户名或密码错误"\n'
+         '4b. 用户名不存在，系统提示"用户名或密码错误"'],
+        ['后置条件', 'Token 存入浏览器 localStorage，后续请求自动携带'],
+    ]
+)
+doc.add_paragraph()
+
+p('表2-2 注册用例规约', bold=True, center=True, indent=False)
+
+add_table(
+    ['规约项', '描述'],
+    [
+        ['用例名称', '用户注册'],
+        ['参与者', '管理员、操作员、观察者'],
+        ['前置条件', '用户访问登录页'],
+        ['基本事件流',
+         '1. 用户点击「立即注册」切换到注册模式\n'
+         '2. 用户输入用户名、密码和确认密码\n'
+         '3. 系统检查用户名唯一性\n'
+         '4. 系统检查密码长度 ≥ 6 位\n'
+         '5. 注册成功，自动跳回登录模式'],
+        ['异常事件流',
+         '3a. 用户名已存在，提示"用户名已存在"\n'
+         '4a. 密码不足 6 位，提示"密码至少 6 位"\n'
+         '5a. 两次密码不一致，提示"两次密码不一致"'],
+        ['后置条件', '用户记录写入 users 表，默认角色为 operator'],
+    ]
+)
+doc.add_paragraph()
+
+# --- 2.3.2.2 实时监测 ---
+heading('2.3.2.2  实时监测用例', 3)
+
+p('实时监测是系统的核心功能，为用户提供"此刻"环境状态的完整视图。参与者选择大棚和设备后，系统展示该设备的 5 参数仪表盘、最近 1 小时迷你走势、设备状态列表和活跃告警。系统每 5 秒自动轮询最新数据。光照仪表盘根据 timestamp 自动在白天/黑夜模式间切换。')
+
+img_hint('图2-8 实时监测用例图。参与者为三类用户，用例包括选择大棚设备/查看仪表盘/查看迷你走势/查看告警/跳转历史页。监测用例 <<include>> 查看仪表盘')
+
+p('表2-3 查看实时仪表盘用例规约', bold=True, center=True, indent=False)
+
+add_table(
+    ['规约项', '描述'],
+    [
+        ['用例名称', '查看实时仪表盘'],
+        ['参与者', '管理员、操作员、观察者'],
+        ['前置条件', '用户已登录'],
+        ['基本事件流',
+         '1. 系统默认选择第一个大棚和第一个设备\n'
+         '2. 系统调用 API 获取该设备最新环境数据\n'
+         '3. 系统渲染 5 个仪表盘（水温/pH/溶解氧/光照/电导率）\n'
+         '4. 仪表盘根据阈值显示绿/橙/红三段弧线\n'
+         '5. 指针指向当前值\n'
+         '6. 底部状态圆点和文字显示实时数值\n'
+         '7. 每 5 秒重复步骤 2-6'],
+        ['异常事件流', '2a. 无设备数据，仪表盘显示"等待数据"\n2b. API 请求超时，保持上次数据不变'],
+        ['后置条件', '仪表盘持续以 5 秒间隔刷新'],
+    ]
+)
+doc.add_paragraph()
+
+# --- 2.3.2.3 历史数据 ---
+heading('2.3.2.3  历史数据用例', 3)
+
+p('历史数据用例关注对已采集数据的查询和分析。操作员选定设备后，可通过快捷时间按钮（1h/6h/24h/3d/7d）或手动选择起止时间，查询该时间段内的历史环境数据。系统以双 ECharts 曲线图展示（上图：水温+溶解氧，下图：pH值+光照），并提供 CSV 格式的数据导出功能。')
+
+img_hint('图2-9 历史数据用例图。参与者为三类用户，用例包括选择设备/快捷时间查询/手动时间查询/查看曲线/导出CSV')
+
+p('表2-4 历史数据查询用例规约', bold=True, center=True, indent=False)
+
+add_table(
+    ['规约项', '描述'],
+    [
+        ['用例名称', '历史数据查询'],
+        ['参与者', '管理员、操作员、观察者'],
+        ['前置条件', '用户已登录，已选择大棚和设备'],
+        ['基本事件流',
+         '1. 用户点击快捷时间按钮或手动选择时间范围\n'
+         '2. 系统按时间范围和设备ID查询环境数据\n'
+         '3. 系统渲染双曲线图\n'
+         '4. 用户可通过鼠标悬浮查看具体数值'],
+        ['异常事件流', '2a. 该时间段无数据，系统提示相应警告信息'],
+        ['后置条件', '曲线图展示全部查询结果'],
+    ]
+)
+doc.add_paragraph()
+
+# --- 2.3.2.4 大棚管理 ---
+heading('2.3.2.4  大棚管理用例', 3)
+
+p('本用例面向管理员，提供大棚的增删改查功能。大棚表格展示编号、名称、位置、面积、状态、设备数、备注和创建时间。管理员可通过搜索框按编号或名称过滤，也可通过对话框进行新建或编辑操作。')
+
+img_hint('图2-10 大棚管理用例图。参与者为管理员，用例包括查看大棚列表/搜索大棚/新增大棚/编辑大棚/删除大棚')
+
+# --- 2.3.2.5 设备管理 ---
+heading('2.3.2.5  设备管理用例', 3)
+
+p('本用例面向管理员，提供设备的增删改查功能。设备表格展示编号、名称、所属大棚（关联查询填充）、位置、在线状态和安装日期。新增设备时需选择所属大棚，编辑时可修改大棚归属。')
+
+img_hint('图2-11 设备管理用例图。参与者为管理员，用例包括查看设备列表/新增设备/编辑设备/删除设备')
+
+# --- 2.3.2.6 告警 ---
+heading('2.3.2.6  告警记录与告警规则用例', 3)
+
+p('告警记录用例提供告警的查询和处理功能。操作员可查看所有告警或仅查看活跃告警，支持按状态和级别筛选。可单条确认/忽略或一键批量确认。')
+
+p('告警规则配置用例允许管理员在线修改 5 个参数的正常范围和告警阈值，支持启用/禁用某个参数的告警功能。修改后实时仪表盘的颜色阈值立即生效。')
+
+img_hint('图2-12 告警管理系统用例图。包含告警记录和告警规则两个子用例包。参与者为管理员和操作员，操作员操作告警记录（查看/确认/忽略），管理员操作告警规则（修改阈值/启用禁用）')
+
+p('表2-5 告警规则配置用例规约', bold=True, center=True, indent=False)
+
+add_table(
+    ['规约项', '描述'],
+    [
+        ['用例名称', '告警规则配置'],
+        ['参与者', '管理员'],
+        ['前置条件', '用户已登录且角色为 admin'],
+        ['基本事件流',
+         '1. 管理员进入告警规则页面\n'
+         '2. 系统展示 5 条规则\n'
+         '3. 管理员点击编辑按钮\n'
+         '4. 系统弹出编辑对话框\n'
+         '5. 管理员修改阈值/级别/启用状态\n'
+         '6. 点击保存\n'
+         '7. 系统更新数据库中对应规则'],
+        ['后置条件', '仪表盘颜色阈值和告警判断依据新规则'],
+    ]
+)
+doc.add_paragraph()
+
+page_break()
+
+# ==================== 第3章 系统设计 ====================
+heading('3  系统设计', 1)
+
+heading('3.1  总体架构设计', 2)
+
+p('系统采用前后端分离的 B/S 架构，前端 Vue 3 应用运行在浏览器端，后端 Spring Boot 服务运行在服务器端，二者通过 HTTP/JSON 进行数据交互。架构分为四个层次：')
+
+p('（1）表示层（View）：Vue 3 + Element Plus + ECharts。负责用户界面展示和交互，通过 Axios 向后端发送 HTTP 请求。')
+p('（2）控制层（Controller）：Spring MVC 的 @RestController。接收前端请求，进行参数校验，调用业务层，返回 JSON 响应。JWT 拦截器在此层统一校验认证。')
+p('（3）业务层（Service）：Spring 的 @Service 组件。封装核心业务逻辑，通过 MyBatis-Plus 的 BaseMapper 操作数据库。')
+p('（4）数据层（Data）：MySQL 8.0 关系型数据库，HikariCP 连接池管理连接。')
+
+img_hint('图3-1 系统总体架构图。建议采用四层架构图形式，自上而下为表示层（Vue3+ElementPlus+ECharts）、控制层（6个Controller+JWT拦截器）、业务层（6个Service）、数据层（MySQL+HikariCP）。层间用双向箭头连接，标注"HTTP/JSON"、"方法调用"、"JDBC"。左侧标注 Spring Boot 容器边界')
+
+heading('3.2  系统功能模块设计', 2)
+
+heading('3.2.1  系统总功能包图', 3)
+
+p('系统由七个核心功能模块组成：登录注册包、实时监测包、历史数据包、大棚管理包、设备管理包、告警记录包、告警规则包。各模块之间通过 API 接口进行数据交换。')
+
+p('登录注册包提供用户登录、注册和密码修改功能，是系统的基础模块，所有其他模块依赖此模块进行用户身份验证。实时监测包提供仪表盘展示、迷你走势、设备状态列表和活跃告警滚动功能，是操作员日常使用频率最高的模块。历史数据包提供时间范围查询、双曲线图展示和 CSV 数据导出功能。大棚管理包提供大棚的增删改查功能。设备管理包提供设备的增删改查功能。告警记录包提供告警列表查询和处理功能。告警规则包提供 5 个环境参数的告警阈值配置功能。')
+
+img_hint('图3-2 系统总功能包图。一个大矩形框为系统边界，内部包含 7 个包，包之间用虚线依赖箭头标注依赖关系')
+
+heading('3.2.2  环境数据监测模块功能设计', 3)
+
+p('环境数据监测是本系统的核心功能模块，包含两个子页面——实时监测页和历史数据页。实时监测页聚焦"此刻发生了什么"，展示仪表盘、1小时迷你走势、设备状态和活跃告警；历史数据页聚焦"过去发生了什么"，提供完整的曲线查询、时间选择和 CSV 导出功能。')
+
+p('环境数据监测模块涉及的实体类包括：EnvironmentRecord（环境数据记录）、AlertRule（告警规则）、Alert（告警记录）、Device（设备信息）。控制类为 EnvironmentController，提供 6 个 API 端点（数据上报、最新值查询、最近 N 条查询、时间范围查询、数据范围查询、设备列表查询）。业务类为 EnvironmentService，负责数据写入、按设备查询最新/最近/历史数据、数据范围统计等逻辑。')
+
+img_hint('图3-3 环境监测模块类图。展示 EnvironmentController/EnvironmentService/EnvironmentRecord/EnvironmentDataDTO/AlertRule 等类及其关系。Controller 依赖 Service，Service 依赖 Mapper，Mapper 操作 Entity')
+
+heading('3.2.3  大棚与设备管理模块功能设计', 3)
+
+p('大棚与设备管理模块负责养殖基地的基础数据维护。GreenhouseController 提供大棚的 CRUD 及关联设备查询功能。DeviceController 提供设备的 CRUD 功能。大棚列表查询时，GreenhouseServiceImpl.listAll() 自动统计每个大棚下的设备数量填充至 deviceCount 字段。设备列表查询时，DeviceServiceImpl.listAll() 自动查询大棚名称填充至 greenhouseName 字段。')
+
+img_hint('图3-4 大棚设备管理模块类图。展示 GreenhouseController/DeviceController/GreenhouseService/DeviceService/Greenhouse/Device 等类及其关联关系。标注 Greenhouse 与 Device 的 1:N 关系')
+
+heading('3.2.4  告警模块功能设计', 3)
+
+p('告警模块包含告警记录管理和告警规则配置两个子模块。告警记录管理由 AlertController 提供查询、确认、忽略和批量确认端点。告警规则配置由 AlertRuleController 提供查询和修改端点。AlertRule 实体对应 alert_rules 表，存储 5 个环境参数的正常范围、告警阈值、告警级别和启用状态。')
+
+img_hint('图3-5 告警模块类图。展示 AlertController/AlertRuleController/AlertService/AlertRuleService 等类的关系')
+
+heading('3.2.5  认证模块功能设计', 3)
+
+p('认证模块由 AuthController 提供登录、注册和密码修改端点。JwtInterceptor 拦截所有 /api/** 请求，放行登录和注册接口，对其余接口校验 Bearer Token。JwtUtil 负责 Token 的生成、解析和有效期验证。AuthServiceImpl 使用 BCrypt 进行密码加密和验证。')
+
+img_hint('图3-6 认证模块类图。展示 AuthController/AuthService/JwtInterceptor/JwtUtil/User/LoginDTO 等类。标注 JwtInterceptor 与 AuthController 的拦截关系')
+
+heading('3.3  数据库设计', 2)
+
+heading('3.3.1  实体关系分析', 3)
+
+p('系统涉及的实体包括：用户（User）、大棚（Greenhouse）、设备（Device）、环境数据记录（EnvironmentRecord）、告警记录（Alert）和告警规则（AlertRule）。')
+
+p('各实体之间的关系如下：一个大棚包含多个设备（1:N）。一个设备产生多条环境数据记录（1:N）。一个设备可能触发多条告警记录（1:N）。告警规则为独立实体，不与其他实体有外键关联，通过参数名（param）与环境数据记录的参数字段进行逻辑匹配。')
+
+img_hint('图3-7 系统实体关系图（E-R 图）。用矩形表示 6 个实体，菱形表示关系，椭圆表示属性。重点标注：Greenhouse 与 Device 的 1:N 关系、Device 与 EnvironmentRecord 的 1:N 关系、Device 与 Alert 的 1:N 关系。AlertRule 为独立实体')
+
+heading('3.3.2  数据库表设计', 3)
+
+p('系统使用 MySQL 8.0 数据库，数据库名为 gexianmi，字符集为 utf8mb4。各表结构设计如下：')
+
+p('表3-1 users 用户表', bold=True, center=True, indent=False)
+add_table(
+    ['字段名', '类型', '允许为空', '键', '默认值', '说明'],
+    [
+        ['id', 'BIGINT', '否', '主键', 'AUTO_INCREMENT', '用户ID'],
+        ['username', 'VARCHAR(32)', '否', '唯一', '—', '登录用户名'],
+        ['password_hash', 'VARCHAR(128)', '否', '—', '—', 'BCrypt 加密密码'],
+        ['role', 'VARCHAR(16)', '否', '—', 'operator', 'admin/operator/viewer'],
+        ['last_login_at', 'DATETIME', '是', '—', 'NULL', '最后登录时间'],
+        ['created_at', 'DATETIME(3)', '否', '—', 'CURRENT_TIMESTAMP', '创建时间'],
+    ]
+)
+doc.add_paragraph()
+
+p('表3-2 greenhouses 大棚表', bold=True, center=True, indent=False)
+add_table(
+    ['字段名', '类型', '允许为空', '键', '默认值', '说明'],
+    [
+        ['id', 'BIGINT', '否', '主键', 'AUTO_INCREMENT', '大棚ID'],
+        ['code', 'VARCHAR(32)', '否', '唯一', '—', '大棚编号'],
+        ['name', 'VARCHAR(64)', '否', '—', '—', '大棚名称'],
+        ['location', 'VARCHAR(128)', '是', '—', 'NULL', '所在位置'],
+        ['status', "ENUM('normal','maintenance','closed')", '否', '—', 'normal', '运行状态'],
+        ['area', 'DECIMAL(8,2)', '是', '—', 'NULL', '面积(m²)'],
+        ['notes', 'TEXT', '是', '—', 'NULL', '备注'],
+        ['is_deleted', 'TINYINT(1)', '否', '—', '0', '逻辑删除标识'],
+        ['created_at', 'DATETIME(3)', '否', '—', 'CURRENT_TIMESTAMP', '创建时间'],
+        ['updated_at', 'DATETIME(3)', '否', '—', 'CURRENT_TIMESTAMP', '更新时间'],
+    ]
+)
+doc.add_paragraph()
+
+p('表3-3 devices 设备表', bold=True, center=True, indent=False)
+add_table(
+    ['字段名', '类型', '允许为空', '键', '默认值', '说明'],
+    [
+        ['code', 'VARCHAR(32)', '否', '主键', '—', '设备唯一编号'],
+        ['name', 'VARCHAR(64)', '否', '—', '—', '设备名称'],
+        ['greenhouse_id', 'BIGINT', '是', '外键', 'NULL', '所属大棚ID'],
+        ['location', 'VARCHAR(128)', '是', '—', 'NULL', '安装位置'],
+        ['status', "ENUM('online','offline','maintenance')", '否', '—', 'offline', '在线状态'],
+        ['installed_at', 'DATE', '是', '—', 'NULL', '安装日期'],
+        ['notes', 'TEXT', '是', '—', 'NULL', '备注'],
+        ['is_deleted', 'TINYINT(1)', '否', '—', '0', '逻辑删除标识'],
+        ['created_at', 'DATETIME(3)', '否', '—', 'CURRENT_TIMESTAMP', '创建时间'],
+        ['updated_at', 'DATETIME(3)', '否', '—', 'CURRENT_TIMESTAMP', '更新时间'],
+    ]
+)
+p('外键：FOREIGN KEY (greenhouse_id) REFERENCES greenhouses(id)', indent=False)
+doc.add_paragraph()
+
+p('表3-4 environment_records 环境数据记录表', bold=True, center=True, indent=False)
+add_table(
+    ['字段名', '类型', '允许为空', '键', '默认值', '说明'],
+    [
+        ['id', 'BIGINT', '否', '主键', 'AUTO_INCREMENT', '记录ID'],
+        ['device_id', 'VARCHAR(32)', '否', '外键', '—', '设备编号'],
+        ['recorded_at', 'DATETIME(3)', '否', '—', '—', '传感器采集时间'],
+        ['water_temp', 'DECIMAL(5,2)', '是', '—', 'NULL', '水温(°C)'],
+        ['ph', 'DECIMAL(4,2)', '是', '—', 'NULL', 'pH值'],
+        ['dissolved_oxygen', 'DECIMAL(5,2)', '是', '—', 'NULL', '溶解氧(mg/L)'],
+        ['light_intensity', 'DECIMAL(8,2)', '是', '—', 'NULL', '光照强度(lux)'],
+        ['conductivity', 'DECIMAL(6,2)', '是', '—', 'NULL', '电导率(μS/cm)'],
+        ['created_at', 'DATETIME(3)', '是', '—', 'CURRENT_TIMESTAMP', '入库时间'],
+    ]
+)
+p('索引：INDEX idx_device_time (device_id, recorded_at)', indent=False)
+p('外键：FOREIGN KEY (device_id) REFERENCES devices(code)', indent=False)
+doc.add_paragraph()
+
+p('表3-5 alerts 告警记录表', bold=True, center=True, indent=False)
+add_table(
+    ['字段名', '类型', '允许为空', '键', '默认值', '说明'],
+    [
+        ['id', 'BIGINT', '否', '主键', 'AUTO_INCREMENT', '告警ID'],
+        ['device_id', 'VARCHAR(32)', '否', '外键', '—', '触发设备编号'],
+        ['greenhouse_id', 'BIGINT', '是', '外键', 'NULL', '所属大棚ID'],
+        ['param', 'VARCHAR(32)', '否', '—', '—', '告警参数名'],
+        ['param_name', 'VARCHAR(32)', '否', '—', '—', '参数中文名'],
+        ['value', 'DECIMAL(8,2)', '否', '—', '—', '触发时的值'],
+        ['threshold_low', 'DECIMAL(8,2)', '是', '—', 'NULL', '告警下限'],
+        ['threshold_high', 'DECIMAL(8,2)', '是', '—', 'NULL', '告警上限'],
+        ['level', "ENUM('warning','error')", '否', '—', 'warning', '告警级别'],
+        ['message', 'VARCHAR(255)', '否', '—', '—', '告警描述'],
+        ['status', "ENUM('active','confirmed','ignored')", '否', '—', 'active', '处理状态'],
+        ['triggered_at', 'DATETIME(3)', '否', '—', '—', '触发时间'],
+        ['confirmed_at', 'DATETIME(3)', '是', '—', 'NULL', '确认时间'],
+        ['created_at', 'DATETIME(3)', '否', '—', 'CURRENT_TIMESTAMP', '创建时间'],
+    ]
+)
+doc.add_paragraph()
+
+p('表3-6 alert_rules 告警规则配置表', bold=True, center=True, indent=False)
+add_table(
+    ['字段名', '类型', '允许为空', '键', '默认值', '说明'],
+    [
+        ['id', 'BIGINT', '否', '主键', 'AUTO_INCREMENT', '规则ID'],
+        ['param', 'VARCHAR(32)', '否', '唯一', '—', '参数名（waterTemp等）'],
+        ['param_name', 'VARCHAR(32)', '否', '—', '—', '参数中文名'],
+        ['unit', 'VARCHAR(16)', '否', '—', '\"\"', '单位'],
+        ['min_val', 'DECIMAL(8,2)', '是', '—', 'NULL', '正常范围下限'],
+        ['max_val', 'DECIMAL(8,2)', '是', '—', 'NULL', '正常范围上限'],
+        ['threshold_low', 'DECIMAL(8,2)', '是', '—', 'NULL', '告警阈值下限'],
+        ['threshold_high', 'DECIMAL(8,2)', '是', '—', 'NULL', '告警阈值上限'],
+        ['level', 'VARCHAR(16)', '否', '—', 'warning', 'warning/error'],
+        ['enabled', 'TINYINT(1)', '否', '—', '1', '0禁用/1启用'],
+        ['created_at', 'DATETIME(3)', '否', '—', 'CURRENT_TIMESTAMP', '创建时间'],
+        ['updated_at', 'DATETIME(3)', '否', '—', 'CURRENT_TIMESTAMP', '更新时间'],
+    ]
+)
+doc.add_paragraph()
+
+page_break()
+
+# ==================== 第4章 总结与展望 ====================
+heading('4  总结与展望', 1)
+
+heading('4.1  总结', 2)
+
+p('本文围绕葛仙米生长环境智能监测系统的分析与设计，主要完成了以下工作：')
+
+p('（1）对葛仙米养殖环境监测的业务现状进行了深入调研，识别了传统手工记录方式在数据采集不及时、数据分散难追溯、异常无法自动告警等方面的问题。在此基础上，提出了基于 Web 的信息化监测方案。')
+p('（2）在业务分析阶段，识别了系统的三类参与者（管理员、操作员、观察者），对核心业务流程进行了优化，使数据采集从人工变为自动、告警从被动发现变为主动推送。')
+p('（3）在功能分析阶段，采用 UML 用例图对系统七大功能模块进行了建模，包括登录注册、实时监测、历史数据、大棚管理、设备管理、告警记录和告警规则配置，并对关键用例给出了详细的用例规约。')
+p('（4）在数据分析阶段，给出了系统的实体关系图（E-R 图），设计了 6 张核心数据表的完整结构，明确了表间关联关系和索引策略。')
+p('（5）在系统设计阶段，给出了四层 B/S 架构的具体设计，划分了七个功能模块，并通过类图描述了各模块内部的类结构和依赖关系。')
+
+p('通过本次课程设计，深入理解了软件工程中需求分析和系统设计的方法论，掌握了 UML 建模技术（用例图、类图、E-R 图）的应用，积累了前后端分离架构 Web 应用的完整设计经验。')
+
+heading('4.2  进一步的工作', 2)
+
+p('虽然本文对葛仙米生长环境智能监测系统进行了较为完整的分析与设计，但仍有以下方面可以在未来进一步完善：')
+
+p('（1）系统当前仅实现了 Web 端，后续可扩展移动端 App 或微信小程序，使养殖人员通过手机即可查看数据和接收告警推送。')
+p('（2）告警规则的触发条件目前仅支持简单的阈值比较，未来可引入机器学习模型，基于历史数据趋势进行预测性告警（如预测未来 1 小时内水温可能超限）。')
+p('（3）图像识别功能可作为第三阶段扩展——通过水下摄像头定时拍摄葛仙米图像，利用 AI 模型自动判断生长阶段、覆盖率、健康状态和异常情况，并将分析结果存入 image_analysis_records 表。')
+p('（4）硬件联动功能可作为第二阶段扩展——系统根据告警规则自动向执行器（如加热棒、增氧泵、遮光帘）发送控制指令，实现环境参数的自动调控闭环。')
+p('（5）目前系统的用户权限仅通过角色（admin/operator/viewer）进行粗粒度控制，后续可引入 RBAC 权限模型，支持更细粒度的接口级和字段级权限管理。')
+p('（6）操作日志功能可进一步增强系统的可追溯性和安全性。')
+
+page_break()
+
+# ==================== 参考文献 ====================
+heading('参考文献', 1)
+
+refs = [
+    '[1] 百度百科. 科教兴国战略[EB/OL]. http://baike.baidu.com/view/170037.htm, 2014.12.18.',
+    '[2] Jackson M. Software Requirements & Specifications: A Lexicon of Practice, Principles and Prejudices. Harlow: Addison-Wesley, 1995.',
+    '[3] 齐治昌, 谭庆平, 宁洪. 软件工程(第二版)[M]. 高等教育出版社, 2004.',
+    '[4] 王珊, 陈红. 数据库系统原理教程[M]. 清华大学出版社, 1998.',
+    '[5] 李刚. 轻量级Java EE企业应用实战（第5版）[M]. 电子工业出版社, 2018.',
+    '[6] 尤雨溪. Vue.js 官方文档[EB/OL]. https://cn.vuejs.org/, 2026.',
+    '[7] Spring Boot Reference Documentation[EB/OL]. https://docs.spring.io/spring-boot/docs/current/reference/html/, 2026.',
+]
+for ref in refs:
+    p(ref, indent=False)
+
+# ── 保存 ──
+out_path = r'C:\Users\bby\Desktop\GXM_DigitalTwin\GeXianMI\软件工程课程设计-葛仙米环境监测系统.docx'
+doc.save(out_path)
+print(f'已保存: {out_path}')
