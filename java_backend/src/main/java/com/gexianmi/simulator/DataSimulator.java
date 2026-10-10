@@ -25,8 +25,10 @@ public class DataSimulator {
 
     /** 环境数据上报接口地址 */
     private static final String URL = "http://localhost:8000/api/environment/data";
-    /** 模拟设备 ID 列表 */
-    private static final String[] DEVICE_IDS = {"pond-01", "pond-02"};
+    /** 传感器数据上报共享密钥，需与后端 application.yml 中 gexianmi.sensor-api-key 一致 */
+    private static final String API_KEY = "gxm-sensor-2026";
+    /** 模拟设备 ID 列表（必须是 devices 表中已注册的编号） */
+    private static final String[] DEVICE_IDS = {"A-001", "A-002"};
     private static final Random RANDOM = new Random();
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
     /** 时间格式化器 */
@@ -67,6 +69,18 @@ public class DataSimulator {
         double doxy = round(5.0 + RANDOM.nextDouble() * 3.0);
         double light = round(800 + RANDOM.nextDouble() * 700);
         double cond = round(300 + RANDOM.nextDouble() * 100);
+
+        // 15% 概率注入一条越界数据，用于演示告警的自动生成与恢复
+        if (RANDOM.nextDouble() < 0.15) {
+            switch (RANDOM.nextInt(5)) {
+                case 0 -> waterTemp = round(31.0 + RANDOM.nextDouble() * 4.0);
+                case 1 -> ph = round(8.2 + RANDOM.nextDouble() * 1.5);
+                case 2 -> doxy = round(2.0 + RANDOM.nextDouble() * 1.5);
+                case 3 -> light = round(2100 + RANDOM.nextDouble() * 400);
+                default -> cond = round(470 + RANDOM.nextDouble() * 60);
+            }
+        }
+
         String timestamp = LocalDateTime.now().format(FMT);
 
         return String.format(
@@ -87,6 +101,7 @@ public class DataSimulator {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(URL))
                     .header("Content-Type", "application/json")
+                    .header("X-Api-Key", API_KEY)
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();
             HttpResponse<String> response = CLIENT.send(request,

@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { isLoggedIn } from '@/utils/auth'
+import { isLoggedIn, isAdmin } from '@/utils/auth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -25,6 +25,11 @@ const router = createRouter({
       component: () => import('@/views/HistoryQuery.vue'),
     },
     {
+      path: '/screen',
+      name: 'screen',
+      component: () => import('@/views/BigScreen.vue'),
+    },
+    {
       path: '/greenhouses',
       name: 'greenhouses',
       component: () => import('@/views/GreenhouseManage.vue'),
@@ -43,11 +48,19 @@ const router = createRouter({
       path: '/rules',
       name: 'rules',
       component: () => import('@/views/AlertRules.vue'),
+      meta: { adminOnly: true },
     },
     {
       path: '/access',
       name: 'access',
       component: () => import('@/views/AccessManage.vue'),
+      meta: { adminOnly: true },
+    },
+    {
+      path: '/users',
+      name: 'users',
+      component: () => import('@/views/UserManage.vue'),
+      meta: { adminOnly: true },
     },
   ],
 })
@@ -63,6 +76,8 @@ router.beforeEach((to, _from, next) => {
     }
   } else if (!isLoggedIn()) {
     next('/login')
+  } else if (to.meta.adminOnly && !isAdmin()) {
+    next('/monitor')
   } else {
     next()
   }

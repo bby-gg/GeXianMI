@@ -9,9 +9,14 @@
  * 无数据时：在图表上方显示警告提示
  */
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { fetchHistory, fetchDataRange, type DataRange } from '@/api'
 import type { EnvRecord } from '@/types/env.d'
+
+echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent, CanvasRenderer])
 
 console.log('[HistoryChart] 组件加载')
 
@@ -139,7 +144,8 @@ function exportCSV() {
 }
 
 /** 友好的日期显示：去掉秒，中文年月日 */
-function friendlyDate(s: string): string {
+function friendlyDate(s: string | null): string {
+  if (!s) return ''
   const d = new Date(s)
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
 }

@@ -91,7 +91,7 @@ export interface AlertInfo {
   thresholdHigh: number | null
   level: 'warning' | 'error'
   message: string
-  status: 'active' | 'confirmed' | 'ignored'
+  status: 'active' | 'confirmed' | 'ignored' | 'resolved'
   triggeredAt: string | null
   confirmedAt: string | null
 }

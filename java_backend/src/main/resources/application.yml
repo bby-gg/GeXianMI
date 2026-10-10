@@ -1,6 +1,10 @@
 server:
   port: 8000
 
+gexianmi:
+  # 传感器数据上报接口的共享密钥，模拟器/真实传感器上报时需在请求头 X-Api-Key 中携带
+  sensor-api-key: "gxm-sensor-2026"
+
 spring:
   application:
     name: gexianmi-backend

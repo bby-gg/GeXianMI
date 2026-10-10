@@ -2,7 +2,8 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { fetchOperators, fetchUserGreenhouses, fetchAllGreenhousesForAccess, saveUserAccess } from '@/api'
-import type { OperatorInfo, GreenhouseInfo } from '@/api'
+import type { OperatorInfo } from '@/api'
+import type { GreenhouseInfo } from '@/types/env.d'
 
 // ==================== 数据 ====================
 
@@ -42,8 +43,9 @@ const greenhouseCards = computed(() =>
 onMounted(async () => {
   operators.value = await fetchOperators()
   allGreenhouses.value = await fetchAllGreenhousesForAccess()
-  if (operators.value.length > 0) {
-    selectedUserId.value = operators.value[0].id
+  const first = operators.value[0]
+  if (first) {
+    selectedUserId.value = first.id
   }
 })
 

@@ -34,6 +34,18 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 处理越权/无权限异常，返回 403 状态码。
+     *
+     * @param e 越权异常
+     * @return 包含错误信息的统一响应体
+     */
+    @ExceptionHandler(ForbiddenException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Result<?> handleForbidden(ForbiddenException e) {
+        return Result.error(403, e.getMessage());
+    }
+
+    /**
      * 处理业务运行时异常，返回 400 状态码及异常消息。
      *
      * @param e 运行时异常

@@ -1,6 +1,7 @@
 package com.gexianmi.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import java.time.LocalDateTime;
 
@@ -25,6 +26,7 @@ public class User {
     private String username;
 
     /** 用户密码哈希值，不存储明文密码 */
+    @JsonIgnore
     private String passwordHash;
 
     /** 用户角色（admin-管理员 / operator-操作员 / viewer-查看者） */

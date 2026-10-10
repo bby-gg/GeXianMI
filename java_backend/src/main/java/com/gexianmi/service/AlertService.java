@@ -1,5 +1,6 @@
 package com.gexianmi.service;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.gexianmi.entity.Alert;
 import java.util.List;
 
@@ -24,10 +25,11 @@ public interface AlertService {
      *
      * @param status   告警状态，为null时不过滤状态
      * @param deviceId 设备编号，为null时不过滤设备
-     * @param limit    返回条数上限，为null或不大于0时不限制
-     * @return 符合条件的告警列表
+     * @param page     页码（从 1 开始）
+     * @param size     每页条数
+     * @return 分页结果
      */
-    List<Alert> listAll(String status, String deviceId, Integer limit);
+    Page<Alert> listAll(String status, String deviceId, int page, int size);
 
     /**
      * 确认单条告警，将其状态更新为已确认。

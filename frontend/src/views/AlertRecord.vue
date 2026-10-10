@@ -7,15 +7,30 @@ import { ElMessage } from 'element-plus'
 const alerts = ref<AlertInfo[]>([])
 const loading = ref(false)
 const filterStatus = ref('')
+const page = ref(1)
+const size = ref(10)
+const total = ref(0)
 
 onMounted(() => load())
 
 async function load() {
   loading.value = true
-  const params: any = { limit: 200 }
+  const params: any = { page: page.value, size: size.value }
   if (filterStatus.value) params.status = filterStatus.value
-  alerts.value = await fetchAlerts(params)
+  const result = await fetchAlerts(params)
+  alerts.value = result.records
+  total.value = result.total
   loading.value = false
+}
+
+function onFilterChange() {
+  page.value = 1
+  load()
+}
+
+function onSizeChange() {
+  page.value = 1
+  load()
 }
 
 async function handleConfirm(row: AlertInfo) {
@@ -31,10 +46,16 @@ async function handleConfirmAll() {
 }
 
 function statusTag(s: string) {
-  return s === 'active' ? 'danger' : s === 'confirmed' ? 'warning' : 'info'
+  if (s === 'active') return 'danger'
+  if (s === 'confirmed') return 'warning'
+  if (s === 'resolved') return 'success'
+  return 'info'
 }
 function statusText(s: string) {
-  return s === 'active' ? '待处理' : s === 'confirmed' ? '已确认' : '已忽略'
+  if (s === 'active') return '待处理'
+  if (s === 'confirmed') return '已确认'
+  if (s === 'resolved') return '已恢复'
+  return '已忽略'
 }
 </script>
 
@@ -44,10 +65,11 @@ function statusText(s: string) {
       <div class="page-header">
         <span class="page-title">🔔 告警记录</span>
         <div class="header-actions">
-          <el-select v-model="filterStatus" placeholder="筛选状态" style="width: 120px" size="default" clearable @change="load">
+          <el-select v-model="filterStatus" placeholder="筛选状态" style="width: 120px" size="default" clearable @change="onFilterChange">
             <el-option label="待处理" value="active" />
             <el-option label="已确认" value="confirmed" />
             <el-option label="已忽略" value="ignored" />
+            <el-option label="已恢复" value="resolved" />
           </el-select>
           <el-button type="primary" size="default" plain @click="handleConfirmAll">全部标记已读</el-button>
         </div>
@@ -87,6 +109,18 @@ function statusText(s: string) {
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="pagination-wrap">
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="size"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @current-change="load"
+          @size-change="onSizeChange"
+        />
+      </div>
     </div>
   </el-card>
 </template>
@@ -97,5 +131,6 @@ function statusText(s: string) {
 .page-title { font-size: 18px; font-weight: 700; color: #303133; }
 .header-actions { display: flex; gap: 8px; }
 .table-wrap { overflow-x: auto; }
+.pagination-wrap { display: flex; justify-content: flex-end; margin-top: 12px; }
 @media (max-width: 768px) { .page-title { font-size: 16px; } }
 </style>

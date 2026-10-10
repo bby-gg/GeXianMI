@@ -1,10 +1,13 @@
 package com.gexianmi.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.gexianmi.common.Result;
 import com.gexianmi.entity.Alert;
 import com.gexianmi.service.AlertService;
+import com.gexianmi.service.AlertSseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.List;
 
 /**
@@ -20,6 +23,7 @@ import java.util.List;
 public class AlertController {
 
     private final AlertService alertService;
+    private final AlertSseService alertSseService;
 
     /**
      * 查询告警列表，支持按状态、设备ID筛选和数量限制
@@ -30,11 +34,12 @@ public class AlertController {
      * @return 告警列表
      */
     @GetMapping
-    public Result<List<Alert>> listAll(
+    public Result<Page<Alert>> listAll(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String deviceId,
-            @RequestParam(required = false) Integer limit) {
-        return Result.ok(alertService.listAll(status, deviceId, limit));
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return Result.ok(alertService.listAll(status, deviceId, page, size));
     }
 
     /**
@@ -46,6 +51,17 @@ public class AlertController {
     @GetMapping("/active")
     public Result<List<Alert>> listActive(@RequestParam(required = false) String deviceId) {
         return Result.ok(alertService.listActive(deviceId));
+    }
+
+    /**
+     * 订阅告警实时推送（SSE）。
+     * <p>前端 EventSource 连接此端点，有新告警时后端主动推送 "new-alert" 事件。</p>
+     *
+     * @return 长连接的 SseEmitter
+     */
+    @GetMapping("/stream")
+    public SseEmitter stream() {
+        return alertSseService.subscribe();
     }
 
     /**

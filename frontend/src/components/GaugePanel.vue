@@ -1,41 +1,93 @@
 <script setup lang="ts">
 import { watch, ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import * as echarts from 'echarts'
-import type { EnvRecord } from '@/types/env.d'
+import * as echarts from 'echarts/core'
+import { GaugeChart } from 'echarts/charts'
+import { CanvasRenderer } from 'echarts/renderers'
+import type { EnvRecord, AlertRule } from '@/types/env.d'
+import { fetchAlertRules } from '@/api'
+
+echarts.use([GaugeChart, CanvasRenderer])
 
 const props = defineProps<{ data: EnvRecord | null }>()
 
 const gaugeContainers = Array.from({ length: 5 }, () => ref<HTMLDivElement>())
 
-type GaugeDef = { key: keyof EnvRecord; name: string; unit: string; min: number; max: number; normal: [number, number]; warn: [number, number] }
+type ParamKey = 'waterTemp' | 'ph' | 'dissolvedOxygen' | 'lightIntensity' | 'conductivity'
 
-const baseDefs: GaugeDef[] = [
-  { key: 'waterTemp',       name:'水温',   unit:'°C',    min:19, max:26,  normal:[21.4,23.4],warn:[20.4,24.4] },
-  { key: 'ph',              name:'pH值',   unit:'',      min:5.5,max:8.5, normal:[6.9,7.3],  warn:[6.6,7.6]   },
-  { key: 'dissolvedOxygen', name:'溶解氧', unit:'mg/L',  min:4.5,max:9.0, normal:[6.3,7.4],  warn:[5.8,7.9]   },
-  { key: 'lightIntensity',  name:'光照',   unit:'lux',   min:0,  max:2000,normal:[800,1500],warn:[500,1800]  },
-  { key: 'conductivity',    name:'电导率', unit:'μS/cm', min:310,max:390, normal:[335,363],  warn:[321,377]  },
-]
+type GaugeDef = {
+  key: ParamKey
+  name: string
+  unit: string
+  min: number
+  max: number
+  normal: [number, number]
+  warn: [number, number]
+  disabled?: boolean
+}
 
-// 光照盘根据数据时间戳动态生成
+// 5 个参数的固定展示顺序，与模板里的仪表盘一一对应
+const PARAM_KEYS: ParamKey[] = ['waterTemp', 'ph', 'dissolvedOxygen', 'lightIntensity', 'conductivity']
+
+// 规则未加载 / 缺失时的兜底显示
+const FALLBACK: Record<ParamKey, { name: string; unit: string; min: number; max: number; normal: [number, number]; warn: [number, number] }> = {
+  waterTemp:       { name: '水温',   unit: '°C',    min: 19,  max: 26,   normal: [21.4, 23.4], warn: [20.4, 24.4] },
+  ph:              { name: 'pH值',   unit: '',      min: 5.5, max: 8.5,  normal: [6.9, 7.3],   warn: [6.6, 7.6] },
+  dissolvedOxygen: { name: '溶解氧', unit: 'mg/L',  min: 4.5, max: 9.0,  normal: [6.3, 7.4],   warn: [5.8, 7.9] },
+  lightIntensity:  { name: '光照',   unit: 'lux',   min: 0,   max: 2000, normal: [800, 1500],  warn: [500, 1800] },
+  conductivity:    { name: '电导率', unit: 'μS/cm', min: 310, max: 390,  normal: [335, 363],   warn: [321, 377] },
+}
+
+// 光照夜间没有规则数据，沿用固定夜间区间
+const LIGHT_NIGHT = { name: '光照(夜)', unit: 'lux', min: 0, max: 200, normal: [0, 50] as [number, number], warn: [0, 100] as [number, number] }
+
+const rules = ref<AlertRule[]>([])
+
+// 仪表盘由告警规则驱动：绿区 = 正常范围，橙区外沿 = 告警阈值，轴范围在阈值外再留出红区
 const gaugeDefs = computed<GaugeDef[]>(() => {
   const ts = props.data?.timestamp
   const h = ts ? parseInt(ts.slice(11, 13)) : undefined
   const isDay = h !== undefined && !isNaN(h) && h >= 6 && h < 18
-  return baseDefs.map(d => {
-    if (d.key === 'lightIntensity') {
-      return isDay
-        ? { ...d, name: '光照(昼)', max: 2000, normal: [800,1500] as [number,number], warn: [500,1800] as [number,number] }
-        : { ...d, name: '光照(夜)', max: 200,  normal: [0,50] as [number,number],    warn: [0,100] as [number,number] }
+
+  return PARAM_KEYS.map(key => {
+    const rule = rules.value.find(r => r.param === key)
+    const disabled = rule ? rule.enabled === 0 : false
+    const fb = FALLBACK[key]
+
+    if (key === 'lightIntensity' && !isDay) {
+      return { key, ...LIGHT_NIGHT, disabled }
     }
-    return { ...d }
+
+    const low = rule?.thresholdLow
+    const high = rule?.thresholdHigh
+    const minV = rule?.minVal
+    const maxV = rule?.maxVal
+    if (low == null || high == null || minV == null || maxV == null || low >= high) {
+      return { key, name: fb.name, unit: fb.unit, min: fb.min, max: fb.max, normal: fb.normal, warn: fb.warn, disabled }
+    }
+
+    const span = high - low
+    const pad = Math.max(span * 0.2, 0.5)
+    return {
+      key,
+      name: key === 'lightIntensity' ? '光照(昼)' : (rule?.paramName || fb.name),
+      unit: rule?.unit || fb.unit,
+      min: +(low - pad).toFixed(2),
+      max: +(high + pad).toFixed(2),
+      normal: [minV, maxV] as [number, number],
+      warn: [low, high] as [number, number],
+      disabled,
+    }
   })
 })
 
 const charts: (echarts.ECharts | null)[] = Array(5).fill(null)
 
-onMounted(() => { nextTick(() => initAllCharts()) })
+onMounted(async () => {
+  nextTick(() => initAllCharts())
+  try { rules.value = await fetchAlertRules() } catch { /* 规则加载失败则沿用兜底值 */ }
+})
 onUnmounted(() => { charts.forEach(c => c?.dispose()); window.removeEventListener('resize', handleResize) })
+watch(rules, () => updateAllCharts())
 watch(() => props.data, () => updateAllCharts(), { deep: true })
 
 function initAllCharts() {
@@ -65,6 +117,7 @@ function updateAllCharts() {
     const chart = charts[i]
     if (!chart || !ref.value) return
     const g = defs[i]
+    if (!g) return
     const val = props.data ? (props.data[g.key] as number) ?? 0 : 0
     const w = ref.value.clientWidth
     const detailSize = w < 140 ? 18 : w < 180 ? 22 : 26
@@ -73,7 +126,7 @@ function updateAllCharts() {
       series: [{
         type: 'gauge', radius: '88%', min: g.min, max: g.max,
         startAngle: 210, endAngle: -30, center: ['50%','54%'],
-        axisLine: { show: true, lineStyle: { width: 20, color: getAxisColor(g) } },
+        axisLine: { show: true, lineStyle: { width: 20, color: g.disabled ? [[1, '#c0c4cc']] : getAxisColor(g) } },
         pointer: { length: '52%', width: 6, itemStyle: { color: '#303133' } },
         axisTick: { distance: -20, length: 6, lineStyle: { width: 1.5, color: '#888' } },
         splitLine: { distance: -26, length: 16, lineStyle: { width: 3, color: '#555' } },
@@ -90,6 +143,7 @@ function updateAllCharts() {
 function statusColor(i: number): string {
   if (!props.data) return '#c0c4cc'
   const g = gaugeDefs.value[i]
+  if (!g || g.disabled) return '#c0c4cc'
   const val = (props.data[g.key] as number) ?? 0
   if (val < g.warn[0] || val > g.warn[1]) return RED
   if (val < g.normal[0] || val > g.normal[1]) return ORANGE
@@ -98,6 +152,8 @@ function statusColor(i: number): string {
 function statusLabel(i: number): string {
   if (!props.data) return '等待数据'
   const g = gaugeDefs.value[i]
+  if (!g) return '—'
+  if (g.disabled) return '规则已禁用'
   const val = props.data[g.key] as number
   if (val === null || val === undefined) return '—'
   return `${val} ${g.unit}`
@@ -126,7 +182,7 @@ function updatedTime(): string {
         @click="() => {}"
       >
         <div class="gauge-badge">{{ g.name }}</div>
-        <div :ref="(el) => { if (el) gaugeContainers[i].value = el as HTMLDivElement }" class="gauge-chart"></div>
+        <div :ref="(el) => { const c = gaugeContainers[i]; if (el && c) c.value = el as HTMLDivElement }" class="gauge-chart"></div>
         <div class="gauge-status" :style="{ color: statusColor(i) }">
           <span class="gauge-dot" :style="{ background: statusColor(i) }"></span>
           {{ statusLabel(i) }}

@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchDevices, fetchActiveAlerts } from '@/api'
-import { isLoggedIn, logout as doLogout, getUser, isAdmin } from '@/utils/auth'
+import { isLoggedIn, logout as doLogout, getUser, isAdmin, getToken } from '@/utils/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,6 +37,7 @@ function toggleMenu() {
 }
 
 let timer: ReturnType<typeof setInterval> | null = null
+let alertStream: EventSource | null = null
 
 // 监听路由变化，更新登录页状态，离开登录页时刷新用户信息
 watch(() => route.path, (path) => {
@@ -48,6 +49,7 @@ watch(() => route.path, (path) => {
       loadDeviceCount()
       loadAlertCount()
     }
+    startAlertStream()
   }
 })
 
@@ -55,11 +57,13 @@ onMounted(() => {
   if (!isLoginPage.value && isLoggedIn()) {
     loadDeviceCount()
     loadAlertCount()
-    timer = setInterval(() => { loadDeviceCount(); loadAlertCount(); }, 30000)
+    startAlertStream()
+    timer = setInterval(() => { loadDeviceCount(); loadAlertCount(); }, 10000)
   }
 })
 onUnmounted(() => {
   if (timer) clearInterval(timer)
+  stopAlertStream()
 })
 
 async function loadDeviceCount() {
@@ -74,7 +78,21 @@ async function loadAlertCount() {
   } catch { /* ignore */ }
 }
 
+// ==================== 告警实时推送（SSE） ====================
+function startAlertStream() {
+  stopAlertStream()
+  const token = getToken()
+  if (!token) return
+  alertStream = new EventSource(`http://localhost:8000/api/alerts/stream?token=${encodeURIComponent(token)}`)
+  alertStream.addEventListener('new-alert', () => loadAlertCount())
+}
+
+function stopAlertStream() {
+  if (alertStream) { alertStream.close(); alertStream = null }
+}
+
 function handleLogout() {
+  stopAlertStream()
   doLogout()
   router.push('/login')
 }
@@ -84,12 +102,14 @@ interface MenuItem { path: string; icon: string; label: string; adminOnly?: bool
 
 const allMenuItems: MenuItem[] = [
   { path: '/monitor',      icon: '📊', label: '实时监测' },
+  { path: '/screen',       icon: '🖥️', label: '监控大屏' },
   { path: '/history',      icon: '📈', label: '历史数据' },
   { path: '/greenhouses',  icon: '🏠', label: '大棚管理' },
   { path: '/devices',      icon: '⚙️', label: '设备管理' },
   { path: '/alerts',       icon: '🔔', label: '告警记录' },
   { path: '/rules',        icon: '🔧', label: '告警规则', adminOnly: true },
   { path: '/access',       icon: '👥', label: '授权管理', adminOnly: true },
+  { path: '/users',        icon: '👤', label: '用户管理', adminOnly: true },
 ]
 
 /** 根据角色过滤可见菜单项 */

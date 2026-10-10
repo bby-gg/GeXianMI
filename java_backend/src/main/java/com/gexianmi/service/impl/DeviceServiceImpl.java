@@ -11,6 +11,7 @@ import com.gexianmi.service.DeviceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,6 +27,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class DeviceServiceImpl implements DeviceService {
+
+    /** 在线判定阈值：最近 N 秒内上报过数据即视为在线 */
+    private static final int ONLINE_THRESHOLD_SECONDS = 60;
 
     /** 设备数据访问层 */
     private final DeviceMapper deviceMapper;
@@ -49,13 +53,29 @@ public class DeviceServiceImpl implements DeviceService {
             wrapper.in(Device::getGreenhouseId, ghIds);
             list = deviceMapper.selectList(wrapper);
         }
-        // 遍历填充每个设备所关联的大棚名称
+        // 遍历填充每个设备所关联的大棚名称，并根据心跳时间推导在线状态
         return list.stream().peek(d -> {
             if (d.getGreenhouseId() != null) {
                 Greenhouse gh = greenhouseMapper.selectById(d.getGreenhouseId());
                 d.setGreenhouseName(gh != null ? gh.getName() : null);
             }
+            d.setStatus(deriveStatus(d));
         }).collect(Collectors.toList());
+    }
+
+    /**
+     * 根据心跳时间推导设备在线状态：
+     * 维护中保留手动状态，否则最近上报过数据视为在线，反之离线。
+     */
+    private String deriveStatus(Device d) {
+        if ("maintenance".equals(d.getStatus())) {
+            return "maintenance";
+        }
+        if (d.getLastSeen() != null
+                && d.getLastSeen().isAfter(LocalDateTime.now().minusSeconds(ONLINE_THRESHOLD_SECONDS))) {
+            return "online";
+        }
+        return "offline";
     }
 
     @Override

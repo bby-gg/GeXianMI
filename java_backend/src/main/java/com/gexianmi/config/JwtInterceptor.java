@@ -5,6 +5,7 @@ import com.gexianmi.utils.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -23,6 +24,10 @@ import java.lang.reflect.Method;
 public class JwtInterceptor implements HandlerInterceptor {
 
     private final JwtUtil jwtUtil;
+
+    /** 传感器数据上报共享密钥（application.yml 中 gexianmi.sensor-api-key） */
+    @Value("${gexianmi.sensor-api-key}")
+    private String sensorApiKey;
 
     /**
      * 请求预处理，验证 Token 有效性和管理员权限。
@@ -43,22 +48,31 @@ public class JwtInterceptor implements HandlerInterceptor {
         }
 
         String uri = request.getRequestURI();
-        // 白名单路径：登录、注册、传感器数据上报无需 Token 校验
-        if (uri.contains("/api/auth/login") || uri.contains("/api/auth/register")
-                || uri.contains("/api/environment/data")) {
+        // 传感器数据上报：不校验 JWT，但必须携带传感器 API 密钥
+        if (uri.contains("/api/environment/data")) {
+            return checkSensorApiKey(request, response);
+        }
+        // 白名单路径：登录、注册无需 Token 校验
+        if (uri.contains("/api/auth/login") || uri.contains("/api/auth/register")) {
             return true;
         }
 
-        // 从 Authorization 请求头提取 Bearer Token
+        // 从 Authorization 请求头提取 Bearer Token，未携带时回退到 token 查询参数
+        // （EventSource 无法自定义请求头，只能通过查询参数携带 Token）
+        String token = null;
         String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+        } else {
+            token = request.getParameter("token");
+        }
+        if (token == null || token.isEmpty()) {
             response.setStatus(401);
             response.setContentType("application/json;charset=UTF-8");
             response.getWriter().write("{\"code\":401,\"msg\":\"请先登录\",\"data\":null}");
             return false;
         }
 
-        String token = authHeader.substring(7);
         if (!jwtUtil.validate(token)) {
             response.setStatus(401);
             response.setContentType("application/json;charset=UTF-8");
@@ -89,6 +103,20 @@ public class JwtInterceptor implements HandlerInterceptor {
         }
 
         return true;
+    }
+
+    /**
+     * 校验传感器数据上报密钥，无效则返回 401。
+     */
+    private boolean checkSensorApiKey(HttpServletRequest request, HttpServletResponse response) throws Exception {
+        String apiKey = request.getHeader("X-Api-Key");
+        if (sensorApiKey != null && sensorApiKey.equals(apiKey)) {
+            return true;
+        }
+        response.setStatus(401);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"code\":401,\"msg\":\"传感器密钥无效，数据上报被拒绝\",\"data\":null}");
+        return false;
     }
 
     @Override

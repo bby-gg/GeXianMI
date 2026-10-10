@@ -13,6 +13,9 @@ from datetime import datetime
 BASE_URL = "http://localhost:8000"
 DATA_URL = f"{BASE_URL}/api/environment/data"
 
+# 传感器上报共享密钥，需与后端 application.yml 中 gexianmi.sensor-api-key 一致
+API_KEY = "gxm-sensor-2026"
+
 # 可用的设备编号（必须在 devices 表中已注册）
 DEVICES = ["A-001", "A-002", "A-003", "A-004"]
 
@@ -49,6 +52,20 @@ def generate_one(device_id: str) -> dict:
     # 电导率：基线 ± 25
     conductivity = round(base["conductivity"] + random.uniform(-25, 25), 0)
 
+    # 15% 概率注入越界数据，用于演示告警的自动生成与恢复
+    if random.random() < 0.15:
+        choice = random.randint(0, 4)
+        if choice == 0:
+            water_temp = round(random.uniform(31, 35), 1)
+        elif choice == 1:
+            ph = round(random.uniform(8.2, 9.5), 1)
+        elif choice == 2:
+            dissolved_oxygen = round(random.uniform(2.0, 3.5), 1)
+        elif choice == 3:
+            light_intensity = round(random.uniform(2100, 2500), 0)
+        else:
+            conductivity = round(random.uniform(470, 530), 0)
+
     return {
         "deviceId": device_id,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -66,7 +83,7 @@ def send(data: dict) -> bool:
     req = urllib.request.Request(
         DATA_URL,
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "X-Api-Key": API_KEY},
         method="POST",
     )
     try:

@@ -10,7 +10,7 @@ const loading = ref(false)
 
 const dialogVisible = ref(false)
 const editingRule = ref<AlertRule | null>(null)
-const form = ref({ minVal: 0, maxVal: 0, thresholdLow: 0, thresholdHigh: 0, enabled: 1, level: 'warning' as string })
+const form = ref({ minVal: 0, maxVal: 0, thresholdLow: 0, thresholdHigh: 0, enabled: 1, level: 'warning' as 'warning' | 'error' })
 const formLoading = ref(false)
 
 onMounted(() => load())

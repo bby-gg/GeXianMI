@@ -31,6 +31,9 @@ public class Device {
     /** 设备运行状态（online-在线 / offline-离线 / maintenance-维护中） */
     private String status;
 
+    /** 设备最近一次上报数据的时间（心跳），用于推导在线/离线状态 */
+    private LocalDateTime lastSeen;
+
     /** 设备安装日期 */
     private LocalDate installedAt;
 

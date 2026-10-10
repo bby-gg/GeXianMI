@@ -128,9 +128,14 @@ export async function deleteDevice(code: string): Promise<boolean> {
 
 // ==================== 告警 API ====================
 
-export async function fetchAlerts(params?: { status?: string; deviceId?: string; limit?: number }): Promise<AlertInfo[]> {
-  const res = await apiHttp.get<ApiResponse<AlertInfo[]>>('/alerts', { params })
-  return res.data.code === 200 ? res.data.data : []
+export interface AlertPage {
+  records: AlertInfo[]
+  total: number
+}
+
+export async function fetchAlerts(params?: { status?: string; deviceId?: string; page?: number; size?: number }): Promise<AlertPage> {
+  const res = await apiHttp.get<ApiResponse<AlertPage>>('/alerts', { params })
+  return res.data.code === 200 ? res.data.data : { records: [], total: 0 }
 }
 
 export async function fetchActiveAlerts(deviceId?: string): Promise<AlertInfo[]> {
@@ -201,4 +206,32 @@ export async function saveUserAccess(userId: number, greenhouseIds: number[]): P
 export async function fetchMyGreenhouseAccess(): Promise<{ all: boolean; greenhouseIds: number[] | null }> {
   const res = await apiHttp.get<ApiResponse<{ all: boolean; greenhouseIds: number[] | null }>>('/access/my-greenhouses')
   return res.data.code === 200 ? res.data.data : { all: false, greenhouseIds: [] }
+}
+
+// ==================== 用户管理（仅管理员） ====================
+
+export interface UserAccount {
+  id: number
+  username: string
+  role: string
+  lastLoginAt: string | null
+  createdAt: string | null
+}
+
+/** 获取所有用户列表 */
+export async function fetchUsers(): Promise<UserAccount[]> {
+  const res = await apiHttp.get<ApiResponse<UserAccount[]>>('/users')
+  return res.data.code === 200 ? res.data.data : []
+}
+
+/** 调整用户角色 */
+export async function updateUserRole(userId: number, role: string): Promise<boolean> {
+  const res = await apiHttp.put<ApiResponse<null>>(`/users/${userId}/role`, null, { params: { role } })
+  return res.data.code === 200
+}
+
+/** 重置用户密码 */
+export async function resetUserPassword(userId: number, newPassword: string): Promise<boolean> {
+  const res = await apiHttp.put<ApiResponse<null>>(`/users/${userId}/password`, { newPassword })
+  return res.data.code === 200
 }

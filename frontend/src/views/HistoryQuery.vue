@@ -12,14 +12,14 @@ const selectedDevice = ref('')
 onMounted(async () => {
   greenhouses.value = await fetchGreenhouses()
   if (greenhouses.value.length > 0) {
-    selectedGreenhouse.value = greenhouses.value[0].id
+    selectedGreenhouse.value = greenhouses.value[0]?.id ?? null
   }
 })
 
 watch(selectedGreenhouse, async (ghId) => {
   if (!ghId) { devices.value = []; selectedDevice.value = ''; return }
   devices.value = await fetchGreenhouseDevices(ghId)
-  if (devices.value.length > 0) selectedDevice.value = devices.value[0].code
+  if (devices.value.length > 0) selectedDevice.value = devices.value[0]?.code ?? ''
   else selectedDevice.value = ''
 })
 </script>

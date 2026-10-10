@@ -1,6 +1,7 @@
 package com.gexianmi.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.gexianmi.common.ForbiddenException;
 import com.gexianmi.common.UserContext;
 import com.gexianmi.entity.Device;
 import com.gexianmi.entity.Greenhouse;
@@ -83,6 +84,13 @@ public class GreenhouseServiceImpl implements GreenhouseService {
 
     @Override
     public List<Device> getDevices(Long greenhouseId) {
+        // 非管理员只能查看自己授权大棚下的设备
+        if (!UserContext.isAdmin()) {
+            List<Long> ghIds = accessService.getAuthorizedGreenhouseIds(UserContext.userId());
+            if (!ghIds.contains(greenhouseId)) {
+                throw new ForbiddenException("无权查看该大棚下的设备");
+            }
+        }
         LambdaQueryWrapper<Device> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Device::getGreenhouseId, greenhouseId);
         return deviceMapper.selectList(wrapper);

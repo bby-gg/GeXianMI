@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { fetchLatest, fetchGreenhouses, fetchGreenhouseDevices, fetchActiveAlerts, fetchRecent } from '@/api'
 import type { EnvRecord, DeviceInfo, GreenhouseInfo, AlertInfo } from '@/types/env.d'
+
+echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 import GaugePanel from '@/components/GaugePanel.vue'
 import DeviceTable from '@/components/DeviceTable.vue'
 import AlertBar from '@/components/AlertBar.vue'
@@ -19,24 +24,43 @@ let timer: ReturnType<typeof setInterval> | null = null
 
 onMounted(async () => {
   greenhouses.value = await fetchGreenhouses()
-  if (greenhouses.value.length > 0) selectedGreenhouse.value = greenhouses.value[0].id
+  if (greenhouses.value.length > 0) selectedGreenhouse.value = greenhouses.value[0]?.id ?? null
 })
 watch(selectedGreenhouse, async (ghId) => {
   if (!ghId) { devices.value = []; selectedDevice.value = ''; return }
   devices.value = await fetchGreenhouseDevices(ghId)
-  if (devices.value.length > 0) selectedDevice.value = devices.value[0].code
+  if (devices.value.length > 0) selectedDevice.value = devices.value[0]?.code ?? ''
   else selectedDevice.value = ''
 })
-watch(selectedDevice, (id) => { if (id) { fetchData(id); loadMiniChart(id) } })
+let deviceGen = 0
+watch(selectedDevice, (id) => {
+  deviceGen++  // 切换设备后，丢弃仍在途的旧请求响应
+  if (id) { fetchData(id); loadMiniChart(id) }
+})
 
 const POLL_MS = 10_000
-onMounted(() => { timer = setInterval(() => { if (selectedDevice.value) { fetchData(selectedDevice.value); loadMiniChart(selectedDevice.value) } }, POLL_MS) })
+const MINI_REFRESH_EVERY = 6  // 迷你走势约每 1 分钟刷新一次，避免频繁重拉 60 条
+let pollCount = 0
+onMounted(() => {
+  timer = setInterval(() => {
+    if (selectedDevice.value) {
+      fetchData(selectedDevice.value)
+      pollCount++
+      if (pollCount >= MINI_REFRESH_EVERY) {
+        pollCount = 0
+        loadMiniChart(selectedDevice.value)
+      }
+    }
+  }, POLL_MS)
+})
 onUnmounted(() => { if (timer) clearInterval(timer); miniChart?.dispose() })
 
 async function fetchData(deviceId: string) {
-  const data = await fetchLatest(deviceId)
+  const gen = deviceGen
+  const [data, alerts] = await Promise.all([fetchLatest(deviceId), fetchActiveAlerts(deviceId)])
+  if (gen !== deviceGen) return  // 已切换设备，丢弃过期响应
   if (data) latestData.value = data
-  alertMessages.value = await fetchActiveAlerts(deviceId)
+  alertMessages.value = alerts
 }
 
 // ====== 迷你走势：按钮切换，默认只显示水温 ======
@@ -55,15 +79,17 @@ const P = [
 const vis = ref({ waterTemp: true, ph: false, dissolvedOxygen: false, lightIntensity: false, conductivity: false })
 
 async function loadMiniChart(deviceId: string) {
+  const gen = deviceGen
   try {
     const fresh = await fetchRecent(deviceId, 60)
+    if (gen !== deviceGen) return  // 已切换设备，丢弃过期响应
     if (fresh.length === 0) return
     updateMiniChart(fresh, deviceId !== lastDeviceId)
     lastDeviceId = deviceId
   } catch { /* ignore */ }
 }
 
-function toggleParam(key: string) {
+function toggleParam(key: keyof typeof vis.value) {
   vis.value[key] = !vis.value[key]
   if (lastDeviceId) updateMiniChartFromCache()
 }
@@ -86,16 +112,18 @@ function updateMiniChart(records: EnvRecord[], fullInit: boolean) {
   const active = P.filter(p => v[p.key])
   if (active.length === 0) { miniChart?.clear(); return }
 
-  // Y 轴左-右交替，偏移量动态分配
-  const offsets = [0, 0, 55, 55, 110]
+  // Y 轴左-右交替，同侧轴的偏移量按数量动态分配，避免多轴标签重叠
+  let leftCount = 0, rightCount = 0
+  const AXIS_GAP = 48
   const yAxes = active.map((p, i) => {
     const vals = sorted.map(r => r[p.key] ?? 0) as number[]
     const mn = Math.min(...vals), mx = Math.max(...vals)
     const pad = Math.max((mx - mn) * 0.3, 0.3)
     const onRight = i % 2 === 1
+    const offset = onRight ? rightCount++ * AXIS_GAP : leftCount++ * AXIS_GAP
     return {
       type: 'value' as const, min: +(mn - pad).toFixed(1), max: +(mx + pad).toFixed(1), splitNumber: 3,
-      position: onRight ? 'right' as const : 'left' as const, offset: onRight ? offsets[i] : offsets[i],
+      position: onRight ? 'right' as const : 'left' as const, offset,
       name: `${p.name}(${p.unit})`,
       nameLocation: onRight ? 'end' as const : 'start' as const,
       nameTextStyle: { fontSize: 10, color: p.color, fontWeight: 600 as const },

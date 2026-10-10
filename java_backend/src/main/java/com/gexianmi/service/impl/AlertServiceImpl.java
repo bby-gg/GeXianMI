@@ -2,6 +2,8 @@ package com.gexianmi.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.gexianmi.common.ForbiddenException;
 import com.gexianmi.common.UserContext;
 import com.gexianmi.entity.Alert;
 import com.gexianmi.mapper.AlertMapper;
@@ -69,17 +71,15 @@ public class AlertServiceImpl implements AlertService {
     }
 
     @Override
-    public List<Alert> listAll(String status, String deviceId, Integer limit) {
+    public Page<Alert> listAll(String status, String deviceId, int page, int size) {
         LambdaQueryWrapper<Alert> wrapper = buildBaseWrapper(status, deviceId);
-        if (limit != null && limit > 0) {
-            wrapper.last("LIMIT " + limit);
-        }
-        return alertMapper.selectList(wrapper);
+        return alertMapper.selectPage(new Page<>(page, size), wrapper);
     }
 
     @Override
     @Transactional
     public boolean confirm(Long id) {
+        checkOwnership(id);
         Alert alert = new Alert();
         alert.setId(id);
         alert.setStatus("confirmed");
@@ -90,10 +90,24 @@ public class AlertServiceImpl implements AlertService {
     @Override
     @Transactional
     public boolean ignore(Long id) {
+        checkOwnership(id);
         Alert alert = new Alert();
         alert.setId(id);
         alert.setStatus("ignored");
         return alertMapper.updateById(alert) > 0;
+    }
+
+    /**
+     * 校验当前用户是否有权处理该告警：非管理员只能处理自己授权大棚下的告警。
+     */
+    private void checkOwnership(Long id) {
+        if (UserContext.isAdmin()) return;
+        Alert alert = alertMapper.selectById(id);
+        if (alert == null) return;
+        List<Long> ghIds = accessService.getAuthorizedGreenhouseIds(UserContext.userId());
+        if (alert.getGreenhouseId() == null || !ghIds.contains(alert.getGreenhouseId())) {
+            throw new ForbiddenException("无权处理该告警，它不属于您的授权范围");
+        }
     }
 
     @Override
